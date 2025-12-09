@@ -509,22 +509,41 @@ func (u *UserContext) setAppBackgroundStatus(ctx context.Context, isBackground b
 			u.setFGCtx()
 			u.longConnMgr.ResumeForegroundTasks(u.ctx, u.fgCtx)
 		}
+		
+		// 给连接一些时间建立，避免在连接未就绪时发送请求导致卡死
+		// Wait a bit for connection to establish before sending request
+		time.Sleep(100 * time.Millisecond)
 	} else {
 		if u.info.StopGoroutineOnBackground {
 			u.fgCancel(errs.Wrap(fmt.Errorf("app in background")))
 			u.longConnMgr.Close(ctx)
 		}
 	}
-	var resp sdkws.SetAppBackgroundStatusResp
-	err := u.longConnMgr.SendReqWaitResp(ctx, &sdkws.SetAppBackgroundStatusReq{UserID: u.loginUserID, IsBackground: isBackground}, constant.SetBackgroundStatus, &resp)
-	if err != nil {
-		return err
-	} else {
-		if !isBackground {
-			_ = common.DispatchWakeUp(ctx, u.msgSyncerCh)
+	
+	// 异步发送后台状态通知，避免阻塞主线程
+	// Send background status notification asynchronously to avoid blocking
+	go func() {
+		// 创建一个带超时的context，防止永久阻塞
+		// Create a context with timeout to prevent permanent blocking
+		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		
+		var resp sdkws.SetAppBackgroundStatusResp
+		err := u.longConnMgr.SendReqWaitResp(timeoutCtx, &sdkws.SetAppBackgroundStatusReq{UserID: u.loginUserID, IsBackground: isBackground}, constant.SetBackgroundStatus, &resp)
+		if err != nil {
+			log.ZWarn(ctx, "SendReqWaitResp SetAppBackgroundStatus failed", err, "isBackground", isBackground)
+		} else {
+			log.ZDebug(ctx, "SendReqWaitResp SetAppBackgroundStatus success", "isBackground", isBackground)
 		}
-		return nil
+	}()
+	
+	// 立即触发唤醒消息同步，不等待服务器响应
+	// Trigger wake up immediately without waiting for server response
+	if !isBackground {
+		_ = common.DispatchWakeUp(ctx, u.msgSyncerCh)
 	}
+	
+	return nil
 }
 
 func (u *UserContext) LongConnMgr() *interaction.LongConnMgr {

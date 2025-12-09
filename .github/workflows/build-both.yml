@@ -1,0 +1,101 @@
+name: Build Android AAR & iOS XCFramework
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+  release:
+    types: [created]
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.21"
+
+      - name: Install gomobile
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          go install golang.org/x/mobile/cmd/gobind@latest
+          gomobile init
+
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r20b
+
+      - name: Build Android AAR
+        run: |
+          export ANDROID_NDK_HOME=$ANDROID_HOME/ndk/20.1.5948944
+          gomobile bind -v -trimpath -ldflags="-s -w" -o ./open_im_sdk.aar -target=android ./open_im_sdk/ ./open_im_sdk_callback/
+
+      - name: Upload AAR
+        uses: actions/upload-artifact@v3
+        with:
+          name: open_im_sdk.aar
+          path: open_im_sdk.aar
+          retention-days: 30
+
+  build-ios:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.21"
+
+      - name: Install gomobile
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          go install golang.org/x/mobile/cmd/gobind@latest
+          gomobile init
+
+      - name: Build iOS XCFramework
+        run: |
+          make ios
+
+      - name: Upload XCFramework
+        uses: actions/upload-artifact@v3
+        with:
+          name: OpenIMCore.xcframework
+          path: build/OpenIMCore.xcframework
+          retention-days: 30
+
+  create-release:
+    needs: [build-android, build-ios]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    steps:
+      - name: Download AAR
+        uses: actions/download-artifact@v3
+        with:
+          name: open_im_sdk.aar
+
+      - name: Download XCFramework
+        uses: actions/download-artifact@v3
+        with:
+          name: OpenIMCore.xcframework
+
+      - name: Create ZIP archives
+        run: |
+          zip -r open_im_sdk.aar.zip open_im_sdk.aar
+          zip -r OpenIMCore.xcframework.zip build/OpenIMCore.xcframework
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            open_im_sdk.aar.zip
+            OpenIMCore.xcframework.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

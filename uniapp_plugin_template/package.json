@@ -1,0 +1,30 @@
+{
+  "name": "openim-sdk-uniapp",
+  "id": "openim-sdk",
+  "version": "1.0.0",
+  "description": "OpenIM SDK for UniApp - 即时通讯 SDK 原生插件",
+  "_dp_type": "nativeplugin",
+  "_dp_nativeplugin": {
+    "android": {
+      "plugins": [
+        {
+          "type": "module",
+          "name": "OpenIMModule",
+          "class": "io.openim.uniapp.OpenIMModule"
+        }
+      ],
+      "integrateType": "aar"
+    },
+    "ios": {
+      "plugins": [
+        {
+          "type": "module",
+          "name": "OpenIMModule",
+          "class": "OpenIMModule"
+        }
+      ],
+      "integrateType": "framework"
+    }
+  }
+}
+
