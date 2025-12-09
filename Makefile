@@ -186,9 +186,10 @@ reset_remote_branch:
 ## ios: Build the iOS framework
 .PHONY: ios
 ios:
-	go get golang.org/x/mobile
+	go install golang.org/x/mobile/cmd/gomobile@latest
+	PATH="$(GOBIN):$$PATH" $(GOBIN)/gomobile init
 	rm -rf build/ open_im_sdk/t_friend_sdk.go open_im_sdk/t_group_sdk.go  open_im_sdk/ws_wrapper/
-	GOARCH=arm64 gomobile bind -v -trimpath -ldflags "-s -w" -o build/OpenIMCore.xcframework -target=ios ./open_im_sdk/ ./open_im_sdk_callback/
+	PATH="$(GOBIN):$$PATH" GOARCH=arm64 $(GOBIN)/gomobile bind -v -trimpath -ldflags "-s -w" -o build/OpenIMCore.xcframework -target=ios ./open_im_sdk/ ./open_im_sdk_callback/
 
 ## android: Build the Android library
 # Note: to build an AAR on Windows, gomobile, Android Studio, and the NDK must be installed.
